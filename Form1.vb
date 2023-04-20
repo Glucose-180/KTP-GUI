@@ -6,12 +6,12 @@ Public Class Form1
     Dim mmf_cmd, mmf_dat As MemoryMappedFile
     Dim macc_cmd, macc_dat As MemoryMappedViewAccessor
     Dim CLI_Started As Boolean
-    Const DSIZE = 64
-    Const CELLSIZE = 60
+    Public Const DSIZE = 64
+    Public Const CELLSIZE = 60
 
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         SmemIsOpen = False
-        DrawBoard()
+        DrawEmptyBoard()
         Start_CLI()
     End Sub
 
@@ -35,6 +35,7 @@ Public Class Form1
     End Sub
 
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+        Button2.Enabled = False
         If T1.Enabled = False Then
             If CLI_Started = False Then
                 Button1.Text = "启动中"
@@ -81,18 +82,17 @@ Public Class Form1
     End Sub
 
     Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
-        Dim data(DSIZE) As Int32
-        Dim i As Int32
-        If SmemIsOpen = False Then
-            MsgBox("错误：内存映射文件未打开！", 48, "Error")
-            Exit Sub
+        If Button2.Text = "演示" Then
+            Init()
+            Call TrackBar1_Scroll(Nothing, Nothing)
+            T2.Enabled = True
+            Button2.Text = "停止"
+        Else
+            T2.Enabled = False
+            Button2.Text = "演示"
+            TSPB1.Value = 0
+            TSLabel1.Text = "已停止演示。"
         End If
-        TextBox1.Text = ReadCmd(DSIZE)
-        data = ReadData(DSIZE)
-        ListBox1.Items.Clear()
-        For i = 0 To DSIZE - 1
-            ListBox1.Items.Add(data(i) \ 100 & vbTab & data(i) Mod 100)
-        Next
     End Sub
 
     Public Function ReadCmd(ByVal Size As Integer) As String
@@ -137,9 +137,15 @@ Public Class Form1
             data = ReadData(DSIZE)
             ListBox1.Items.Clear()
             For i = 0 To DSIZE - 1
-                ListBox1.Items.Add(data(i) \ 100 & vbTab & data(i) Mod 100)
+                Display.StepsX(i) = data(i) \ 100
+                Display.StepsY(i) = data(i) Mod 100
+                ListBox1.Items.Add(Format(i + 1, "00") & ":   " & data(i) \ 100 & vbTab & data(i) Mod 100)
             Next
             TSLabel1.Text = "计算完成，耗时 " & CalcTime & " s！"
+            MsgBox("计算完成，耗时 " & CalcTime & " s。" & vbCrLf & "现在可以演示了。", 64, "")
+            Button2.Enabled = True
+            Button2.Text = "演示"
+            TSPB1.Value = 0
             CalcTime = 0
             Button1.Text = "开始计算"
         ElseIf cmd = "Error" Then
@@ -189,18 +195,20 @@ Public Class Form1
         Kill_CLI()
     End Sub
 
-    Private Sub DrawBoard()
-        Dim I As Image
+    Public Sub DrawEmptyBoard()
+        Dim EmptyBoard As Image
         Dim G As Graphics
         Dim P As New Pen(Color.Black)
         Dim Br As New SolidBrush(Color.Black)
         Dim k As Integer
         Dim x, y As Integer
 
-        I = PB1.Image
-        G = Graphics.FromImage(I)
+        EmptyBoard = PB1.Image
+        G = Graphics.FromImage(EmptyBoard)
         G.TranslateTransform(0, PB1.Height)
         G.ScaleTransform(1, -1)
+        ' Clear
+        G.Clear(Color.White)
         ' Draw Lines
         For k = 1 To 7
             G.DrawLine(P, 0, k * CELLSIZE, 8 * CELLSIZE, k * CELLSIZE)
@@ -215,6 +223,28 @@ Public Class Form1
             Next
         Next
         G.Dispose()
-        PB1.Image = I
+        PB1.Image = EmptyBoard
     End Sub
+
+    Private Sub T2_Tick(sender As Object, e As EventArgs) Handles T2.Tick
+        If Display.StepCount >= DSIZE Then
+            T2.Enabled = False
+            Button2.Text = "演示"
+            TSLabel1.Text = "演示完成！"
+        Else
+            DrawStep()
+            TSLabel1.Text = "正在演示，第 " & StepCount & " 步…"
+        End If
+        TSPB1.Value = StepCount
+    End Sub
+
+    Private Sub TrackBar1_Scroll(sender As Object, e As EventArgs) Handles TrackBar1.Scroll
+        T2.Interval = 2000 / TrackBar1.Value
+        Label4.Text = (TrackBar1.Value / 2) & " 步/秒"
+    End Sub
+
+    Private Sub PB1_Click(sender As Object, e As EventArgs) Handles PB1.Click
+        TextBox1.Text = (MousePosition.X - PB1.Location.X - Me.Location.X) \ CELLSIZE & " " & (8 - (MousePosition.Y - PB1.Location.Y - Me.Location.Y) \ CELLSIZE)
+    End Sub
+
 End Class
